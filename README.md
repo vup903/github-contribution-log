@@ -1,88 +1,84 @@
-# Contribution 1: Abort request on client disconnect (vLLM-Omni)
+# Contribution 1: Unify & de-duplicate JSON metadata validation (zarr-python)
 
 **Contribution Number:** 1  
-**Student:** Ypng-Shin Jiang
-**Issue:** https://github.com/vllm-project/vllm-omni/issues/1347  
-**Status:** Phase I — Complete 
+**Student:** Yong-Shin Jiang
+**Issue:** https://github.com/zarr-developers/zarr-python/issues/3285  
+**Status:** Phase I — Complete
 
 ---
 
 ## Why I Chose This Issue
 
-This issue asks vLLM-Omni to abort an in-flight request when the client
-disconnects, so the server stops spending GPU compute on a result no one is
-waiting for. It matters because abandoned long-running generations otherwise
-hold onto scarce GPU memory and throughput — a real cost and reliability issue
-for production serving. I chose it because it sits squarely in LLM/inference-
-serving, the area I most want to deepen as a CS master's student, and because
-the scope is clean: PR #1156 already merged the cancellation mechanism (a
-`@with_cancellation` decorator plus a signal-based interrupt) for the
-image-editing endpoint, so my task is to extend that proven pattern to the
-generation/variation endpoints that still lack it. That lets me learn how a real
-serving engine manages request lifecycles and async cancellation, while keeping
-the change focused enough to land cleanly.
+Zarr is a foundational piece of the scientific-Python and ML-data stack — it's
+the chunked-array storage layer behind tools like xarray and Dask, so
+contributing here means working on infrastructure that real data and ML
+pipelines depend on. This issue is a focused refactor: the library currently
+validates its JSON metadata through a set of scattered, overlapping `parse_*`
+helpers, and the goal is to de-duplicate that logic into a single,
+type-annotation-driven validation path. I chose it because it fits my Python
+background well, sits in the data-infrastructure area I want to deepen as a CS
+master's student, and is the kind of clean refactor where I can demonstrate good
+API design and runtime-typing skills while making the codebase genuinely
+simpler. The maintainer (d-v-b) confirmed that de-duplication is the biggest
+win, which gives me a clear, well-scoped target.
 
 ---
 
 ## Understanding the Issue
 
+> Note: this is a **refactoring** issue, not a bug — there is no failing
+> behavior to reproduce. The work is consolidating duplicated validation logic.
+
 ### Problem Description
 
-When a client disconnects (or explicitly cancels) an in-flight inference
-request, vLLM-Omni does not stop the work for every endpoint — the server keeps
-running the generation and holding GPU resources for a result that will never be
-delivered. Cancellation is currently wired into only the image-editing endpoint;
-the generation/variation endpoints do not honor it.
+zarr-python validates its JSON metadata (array/group metadata fields) through a
+number of separate `parse_*` helper functions. These helpers re-implement
+similar validation logic in multiple places, so the same "check a value against
+its expected type" behavior is duplicated rather than living in one shared,
+reusable place.
 
-### Expected Behavior
+### Expected Behavior (desired end state)
 
-When the HTTP client disconnects, the server should abort the associated
-request, stop the remaining diffusion/generation steps, and release the GPU
-resources promptly — consistent with how the `edit_images` endpoint already
-behaves via the `@with_cancellation` decorator and signal-based interrupt added
-in #1156.
+A single, shared validation path — e.g. a `parse_json(value, type_annotation)`
+style entry point — that validates a JSON metadata value against its declared
+type annotation, with clear error messages. The scattered `parse_*` helpers are
+consolidated so the logic is defined once and reused.
 
 ### Current Behavior
 
-Disconnecting during a long-running generation/variation request does not stop
-the work. The request continues to completion, unnecessarily consuming GPU
-memory and throughput. Only `edit_images` currently supports cancellation.
+Validation logic is spread across multiple `parse_*` helpers with overlapping
+responsibilities, making the metadata layer harder to maintain and extend, and
+allowing the same logic to drift between copies.
 
 ### Affected Components
 
-Based on the mechanism introduced in #1156 (exact paths/names to confirm in
-Phase II):
-- The API route handlers for the generation/variation endpoints (the serving
-  layer that needs the cancellation decorator applied).
-- The shared `@with_cancellation` decorator and the signal-based (SIGUSR1)
-  interrupt flow that notifies worker processes.
-- The worker/engine code that checks the interrupt flag and skips the remaining
-  diffusion (DIT) steps.
-- The post-cancellation GPU-memory release/cleanup path.
+(Exact paths to confirm in Phase II.)
+- The metadata parsing/validation helpers (the `parse_*` functions, likely under
+  `src/zarr/core/metadata/`).
+- Their call sites across the metadata (v2/v3) handling code.
+- Any existing typing/metadata utilities that should be reused rather than
+  duplicated.
 
 ---
 
 ## Reproduction Process
 
-> Phase II — no local environment is set up yet (Phase I is selection only).
+> Refactor issue — no bug to reproduce. Phase II will instead map the current
+> duplication and call sites.
 
 ### Environment Setup
 
-[To be completed in Phase II — set up the vLLM-Omni dev environment following the
-project's contributing guide.]
+[Phase II — set up the zarr-python dev environment following the project's
+contributing guide.]
 
-### Steps to Reproduce (planned)
+### Investigation Steps (planned)
 
-1. Start the vLLM-Omni server with a diffusion model.
-2. Send a long-running generation/variation request, then disconnect the client
-   mid-request.
-3. Observe that the server keeps processing and holds GPU resources instead of
-   aborting (compare against the `edit_images` endpoint, which aborts correctly).
+1. Locate every `parse_*` helper in the metadata layer.
+2. Catalog the duplicated validation logic and what each helper checks.
+3. Identify all call sites that would migrate to the unified path.
 
-### Reproduction Evidence
+### Findings
 
-- **Commit showing reproduction:** [Phase II]
-- **Screenshots/logs:** [Phase II]
 - **My findings:** [Phase II]
 
 ---
@@ -91,63 +87,62 @@ project's contributing guide.]
 
 ### Analysis
 
-This is a coverage gap, not a broken mechanism: #1156 added a working
-cancellation path, but only `edit_images` applies it. The generation/variation
-endpoints never opt into the decorator/interrupt flow, so client disconnects are
-not propagated to the worker.
+Each metadata field/type currently has its own ad-hoc parsing/validation helper,
+so there is no single source of truth for "validate this value against its
+declared type." The result is duplicated logic that can drift over time — which
+is exactly the de-duplication the maintainer flagged as the biggest win.
 
 ### Proposed Solution
 
-Reuse the cancellation mechanism merged in #1156 rather than building new
-infrastructure: apply the `@with_cancellation` decorator to the
-generation/variation endpoint handlers and ensure the
-disconnect → interrupt-signal → worker interrupt-flag → GPU-release flow works
-for those request paths. The change intentionally excludes the broader
-cross-worker interruption-granularity redesign discussed in the RFC. Final scope
-pending maintainer confirmation on #1347.
+Consolidate the scattered `parse_*` helpers into a single shared,
+type-annotation-driven validation entry point, then migrate existing call sites
+to it and remove the duplicates. Per the maintainer's request, I'll first open a
+**draft PR** that demonstrates this direction and get early feedback before
+polishing. Scope stays on de-duplication; I won't expand it into a larger
+metadata redesign.
 
 ### Implementation Plan
 
 Using UMPIRE framework (adapted):
 
-**Understand:** Client disconnects abort only `edit_images` today; extend the
-same behavior to the generation/variation endpoints.
+**Understand:** Metadata validation is duplicated across `parse_*` helpers;
+consolidate it into one shared, type-driven path. Maintainer's priority:
+de-duplication.
 
-**Match:** PR #1156 is the reference implementation — it added the
-`@with_cancellation` decorator + SIGUSR1 interrupt to `edit_images`. Mirror that
-pattern.
+**Match:** Study how the existing `parse_*` helpers and any current
+typing/metadata utilities work, and reuse them rather than reinventing.
 
 **Plan:**
-1. Confirm target endpoint(s) and scope with the maintainer on #1347.
-2. Locate the generation/variation route handlers and the `@with_cancellation`
-   utility.
-3. Apply the cancellation decorator and wire the interrupt path for those
-   handlers.
-4. Verify GPU memory/resources are released on cancel.
-5. Add or adapt a cancellation test mirroring the existing `edit_images`
-   coverage.
+1. Map all `parse_*` helpers and their call sites.
+2. Design a single shared `parse_json(value, type_annotation)`-style entry point.
+3. **Open a draft PR showing the direction and tag @d-v-b for early feedback**
+   (per his request) before polishing.
+4. After the direction is confirmed, migrate call sites and remove duplicates.
+5. Keep existing metadata tests green; add tests for the unified validator.
 
 **Implement:** [Links to branch/commits — Phase II]
 
-**Review:** [Self-review checklist — follows CONTRIBUTING, matches the #1156
-pattern, tests pass — Phase II]
+**Review:** [Self-review — follows CONTRIBUTING, no behavior change, tests pass — Phase II]
 
-**Evaluate:** [How I verified it works — Phase II]
+**Evaluate:** [How I verified equivalence after de-dup — Phase II]
 
 ---
 
 ## Testing Strategy
 
-### Unit / Integration Tests (planned)
+### Unit Tests (planned)
 
-- [ ] Simulate a client disconnect on a generation request and assert the
-      request is aborted.
-- [ ] Assert GPU resources/memory are released after cancellation.
-- [ ] Mirror any existing `edit_images` cancellation test for the new endpoint(s).
+- [ ] Valid values pass validation for each metadata type.
+- [ ] Wrong types raise a clear, helpful error.
+- [ ] Edge cases: `Optional`/`Union`/nested annotations behave correctly.
+
+### Integration Tests (planned)
+
+- [ ] Existing metadata round-trip tests still pass after the de-duplication.
 
 ### Manual Testing
 
-[Phase II — manual disconnect test and observed result.]
+[Phase II]
 
 ---
 
@@ -167,15 +162,17 @@ pattern, tests pass — Phase II]
 
 ## Pull Request
 
-**PR Link:** [Phase III]
+**PR Link:** [Draft PR — Phase II]
 
-**PR Description:** [Adapted from the sections above when submitted.]
+**PR Description:** [Adapted from the sections above; will open as a draft first
+to show direction, per maintainer request.]
 
 **Maintainer Feedback:**
-- [Date]: [Summary of feedback]
-- [Date]: [How I addressed it]
+- 2026-06-08: @d-v-b confirmed the biggest win is **de-duplication** and asked
+  for a **draft PR showing the intended direction** as a starting point.
+- [Date]: [Next feedback + how I addressed it]
 
-**Status:** [Awaiting review / Iterating / Approved / Merged]
+**Status:** Planning → Draft PR (Phase II)
 
 ---
 
@@ -197,7 +194,7 @@ pattern, tests pass — Phase II]
 
 ## Resources Used
 
-- Issue: https://github.com/vllm-project/vllm-omni/issues/1347
-- Reference PR (cancellation mechanism): https://github.com/vllm-project/vllm-omni/pull/1156
-- vLLM-Omni repository: https://github.com/vllm-project/vllm-omni
-- vLLM-Omni docs: https://docs.vllm.ai/projects/vllm-omni
+- Issue: https://github.com/zarr-developers/zarr-python/issues/3285
+- Repository: https://github.com/zarr-developers/zarr-python
+- Documentation: https://zarr.readthedocs.io
+- Contributing guide: see the project's contributing docs in the repo
