@@ -3,7 +3,8 @@
 **Contribution Number:** 1  
 **Student:** Yong-Shin Jiang
 **Issue:** https://github.com/zarr-developers/zarr-python/issues/3285  
-**Status:** Phase I — Complete
+**Fork branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285  
+**Status:** Phase II — Complete
 
 ---
 
@@ -52,12 +53,18 @@ allowing the same logic to drift between copies.
 
 ### Affected Components
 
-(Exact paths to confirm in Phase II.)
-- The metadata parsing/validation helpers (the `parse_*` functions, likely under
-  `src/zarr/core/metadata/`).
-- Their call sites across the metadata (v2/v3) handling code.
-- Any existing typing/metadata utilities that should be reused rather than
-  duplicated.
+Confirmed in Phase II by grepping `^def parse_` across `src/zarr` (~40 helpers
+in ~14 files):
+- `src/zarr/core/common.py` — `parse_order`, `parse_bool`, `parse_shapelike`,
+  `parse_name`, `parse_enum`, ...
+- `src/zarr/core/metadata/v3.py` — `parse_zarr_format`, `parse_node_type_array`,
+  `parse_dimension_names`, `parse_codecs`, ...
+- `src/zarr/core/metadata/v2.py` — `parse_zarr_format` (a near-duplicate of the
+  v3 version), `parse_filters`, `parse_compressor`, ...
+- `src/zarr/codecs/{blosc,gzip,zstd}.py` — `parse_clevel`, `parse_gzip_level`,
+  `parse_zstd_level` (all "is this an int?" checks).
+- Call sites across the v2/v3 metadata handling code that would migrate to the
+  unified path.
 
 ---
 
@@ -68,18 +75,60 @@ allowing the same logic to drift between copies.
 
 ### Environment Setup
 
-[Phase II — set up the zarr-python dev environment following the project's
-contributing guide.]
+- **OS:** Windows 11.
+- **Python:** the repo requires `>=3.12` (`.python-version` = 3.12,
+  `pyproject.toml` `requires-python = ">=3.12"`). My machine had 3.11, so I
+  installed Python 3.12.10.
+- **Build/test tool:** `hatch` (envs defined in `pyproject.toml`; `uv.lock`
+  present).
 
-### Investigation Steps (planned)
+Setup commands:
 
-1. Locate every `parse_*` helper in the metadata layer.
-2. Catalog the duplicated validation logic and what each helper checks.
-3. Identify all call sites that would migrate to the unified path.
+```powershell
+py -3.12 -m pip install hatch
+# hatch was installed to .../Python312/Scripts which was not on PATH, so I
+# invoke it as a module instead:
+py -3.12 -m hatch env show
+py -3.12 -m hatch env run --env test.py3.12-optional run
+```
+
+**Friction encountered & fix:** the `hatch.exe` shim was placed in a Scripts
+directory that is not on PATH, so `hatch` was "command not found". Fix: call it
+as `py -3.12 -m hatch ...` (no PATH edit required).
+
+### Steps to Reproduce (demonstrating the duplication)
+
+This is a refactor, so "reproduction" means showing the scattered, duplicated
+validation logic rather than triggering a bug.
+
+1. From the repo root, count the parsers: `grep -rn "^def parse_" src/zarr`
+   → ~40 `parse_*` functions across ~14 files.
+2. Open `src/zarr/core/common.py`: `parse_order` (L208) and `parse_bool` (L214)
+   are each the same "check value, return it, else raise" boilerplate.
+3. Compare `src/zarr/core/metadata/v2.py::parse_zarr_format` (L280) with
+   `src/zarr/core/metadata/v3.py::parse_zarr_format` (L49): two nearly identical
+   literal checks duplicated across two files.
+4. Look at `src/zarr/codecs/{blosc,gzip,zstd}.py`: `parse_clevel`,
+   `parse_gzip_level`, `parse_zstd_level` are all independent "is this an int?"
+   checks.
+5. **Expected end state:** one shared `parse_json(value, type_annotation)`
+   handles all of these categories.
+6. **Actual:** every field has its own hand-written parser, duplicating logic
+   that can drift between copies.
 
 ### Findings
 
-- **My findings:** [Phase II]
+- **My findings:** The duplication falls into a small set of recurring
+  patterns — literal checks, primitive (`isinstance`) checks, sequence→tuple
+  coercion, and mapping/TypedDict validation. These map cleanly onto the
+  `parse_json` categories the issue proposes (primitives, sequences, unions,
+  literals, TypedDict, `Mapping[str, T]`), which confirms a single dispatch
+  function can replace most of them. The two `parse_zarr_format` copies are the
+  clearest example of logic that has already been duplicated across files.
+
+### Reproduction Evidence
+
+- **Working branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285
 
 ---
 
@@ -105,26 +154,53 @@ metadata redesign.
 
 Using UMPIRE framework (adapted):
 
-**Understand:** Metadata validation is duplicated across `parse_*` helpers;
-consolidate it into one shared, type-driven path. Maintainer's priority:
+**Understand:** Metadata validation is duplicated across ~40 `parse_*` helpers;
+consolidate them into one shared, type-annotation-driven path
+`parse_json(value, type_annotation)` that returns data assignable to the
+annotation (coercing where sensible, e.g. `[1,2,3] -> (1,2,3)`) or raises a
+useful error. Scope is limited to the JSON types the issue lists: primitives
+(`None/str/int/float/bool`), `Sequence[T]`→tuple, unions/`Optional`,
+`Literal[...]`, `TypedDict`, and `Mapping[str, T]`. Maintainer's priority:
 de-duplication.
 
-**Match:** Study how the existing `parse_*` helpers and any current
-typing/metadata utilities work, and reuse them rather than reinventing.
+**Match:** Existing helpers are the templates — `check_literal` ≈
+`common.py::parse_order` (L208), primitive check ≈ `common.py::parse_bool`
+(L214), sequence→tuple ≈ `metadata/v3.py::parse_dimension_names` (L116),
+literal-int ≈ `metadata/v3.py::parse_zarr_format` (L49). Prior art: the
+maintainer's exploratory runtime type checker in PR
+https://github.com/zarr-developers/zarr-python/pull/3400.
 
 **Plan:**
-1. Map all `parse_*` helpers and their call sites.
-2. Design a single shared `parse_json(value, type_annotation)`-style entry point.
-3. **Open a draft PR showing the direction and tag @d-v-b for early feedback**
-   (per his request) before polishing.
-4. After the direction is confirmed, migrate call sites and remove duplicates.
-5. Keep existing metadata tests green; add tests for the unified validator.
+1. Add `src/zarr/core/json_parse.py` with `parse_json` plus sub-parsers for
+   literal / primitive / union / tuple / sequence / mapping / TypedDict.
+   Critical edge case: `bool` is a subclass of `int`, so check `bool` before
+   `int`.
+2. Add `tests/test_json_parse.py` covering each category (valid passes, invalid
+   raises, sequence→tuple coercion, bool/int, Optional, nested TypedDict).
+3. As a proof of direction, migrate a small pilot set — `parse_order`,
+   `parse_bool`, and `parse_zarr_format` — to call `parse_json`, keeping their
+   public signatures and behavior identical.
+4. **Open a draft PR showing the direction and tag @d-v-b for early feedback**
+   (per his request) before migrating the remaining call sites.
+5. After the direction is confirmed, migrate the rest and remove duplicates.
 
-**Implement:** [Links to branch/commits — Phase II]
+**Files I expect to touch:**
+- ADD `src/zarr/core/json_parse.py`
+- ADD `tests/test_json_parse.py`
+- ADD a changelog fragment under `changes/`
+- EDIT (pilot only) `src/zarr/core/common.py`, `src/zarr/core/metadata/v3.py`
 
-**Review:** [Self-review — follows CONTRIBUTING, no behavior change, tests pass — Phase II]
+**Implement:** [Phase III] Branch:
+https://github.com/vup903/zarr-python/tree/fix-issue-3285
 
-**Evaluate:** [How I verified equivalence after de-dup — Phase II]
+**Review:** Self-review against `.github/CONTRIBUTING.md` and
+`docs/contributing.md`; add a `changes/` fragment; ensure `prek`/pre-commit
+hooks (ruff, mypy) pass; conventional commits + PR linking #3285.
+
+**Evaluate:** Unit tests for every category in `parse_json`; the pilot migration
+must keep behavior identical, verified by running
+`py -3.12 -m hatch env run --env test.py3.12-optional run` and confirming the
+full suite stays green (no regressions).
 
 ---
 
