@@ -92,9 +92,24 @@ py -3.12 -m hatch env show
 py -3.12 -m hatch env run --env test.py3.12-optional run
 ```
 
-**Friction encountered & fix:** the `hatch.exe` shim was placed in a Scripts
-directory that is not on PATH, so `hatch` was "command not found". Fix: call it
-as `py -3.12 -m hatch ...` (no PATH edit required).
+**Friction encountered & fixes:**
+1. The `hatch.exe` shim was placed in a Scripts directory that is not on PATH,
+   so `hatch` was "command not found". Fix: call it as `py -3.12 -m hatch ...`
+   (no PATH edit required).
+2. The `run` script (`pytest --ignore tests/benchmarks`) has no `{args}`
+   placeholder, so passing a single test path to it is ignored and the full
+   suite is collected. To run a focused file, invoke pytest directly in the env:
+   `py -3.12 -m hatch run test.py3.12-optional:pytest tests/test_common.py -q`.
+3. Collecting the full suite currently errors out during collection on
+   `tests/test_group.py::test_group_name_properties: duplicate parametrization
+   of 'store'` under pytest 9.1.0. This is a **pre-existing** issue unrelated to
+   this contribution; I'll keep it in mind for Phase III and run focused test
+   files / report it upstream if it persists.
+
+**Environment verified working:** `py -3.12 -m hatch run
+test.py3.12-optional:pytest tests/test_common.py -q` → **33 passed**. The env
+builds, installs zarr in dev mode (Python 3.12.10, pytest 9.1.0), and runs
+tests.
 
 ### Steps to Reproduce (demonstrating the duplication)
 
