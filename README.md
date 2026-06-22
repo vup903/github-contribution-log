@@ -317,6 +317,37 @@ this change. The Lint/type checks (which gate this work) are green.
   `return parse_json(...)` from `-> int` helpers tripped `no-any-return` (fixed
   with annotated local assignments).
 
+### Phase IV — Iteration on maintainer feedback (msgspec investigation)
+
+After I posted the draft, two maintainers proposed a different direction:
+@chuckwondo suggested adopting `msgspec` (a small dependency) since
+`msgspec.convert` could replace most of this logic, and @d-v-b noted the metadata
+types now live in the `zarr-metadata` package and asked whether msgspec can
+handle them correctly (he recalled hitting issues, possibly with tuples). @d-v-b
+also merged `main` into the branch to keep it current.
+
+I ran a focused spike (`msgspec.convert`, msgspec 0.21.1, Python 3.12) against
+the relevant type categories and the real `zarr-metadata` types, and reported the
+results on the PR. Findings:
+
+- **Works:** list→tuple coercion (variadic, fixed, with unions, wrong-length
+  rejected — so the recalled tuple issue does not reproduce on the current
+  version), strict bool-vs-int, `Literal`, `Mapping[str, T]`, and `TypedDict`
+  with `NotRequired` (including under `from __future__ import annotations`).
+- **Does not work (both load-bearing for the real types):**
+  1. The recursive `JSONValue` `TypeAliasType` — `msgspec.convert(doc,
+     ArrayMetadataV3)` fails with `TypeError: Type 'JSONValue' is not supported`.
+     `JSONValue` is used for `fill_value`, `attributes`, and config mappings.
+  2. PEP 728 `extra_items=` — msgspec ignores it, silently dropping (and not
+     validating) extra keys. `ArrayMetadataV3`/`GroupMetadataV3` rely on
+     `extra_items=ExtensionFieldV3` to validate v3 extension fields.
+
+I proposed two paths back to the maintainers (a thin hand-written layer only for
+`JSONValue` + `extra_items=` with msgspec doing the rest, or reshaping those
+constructs so msgspec covers everything) and asked which they prefer. Awaiting
+their direction before writing more code. Spike script kept locally
+(`msgspec_spike.py`).
+
 ### Code Changes
 
 - **Branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285
@@ -347,10 +378,16 @@ location/name, the exception-handling split, and `TypedDict` handling.
 **Maintainer Feedback:**
 - 2026-06-08: @d-v-b confirmed the biggest win is **de-duplication** and asked
   for a **draft PR showing the intended direction** as a starting point.
-- [awaiting] Feedback on the draft PR direction.
+- 2026-06-22: @chuckwondo suggested adopting `msgspec` to replace most of the
+  hand-written logic; @d-v-b asked whether msgspec can handle the `zarr-metadata`
+  types and merged `main` into the branch. I responded with a spike showing
+  msgspec covers the simple categories but not the recursive `JSONValue` alias or
+  PEP 728 `extra_items=`, and proposed two directions (see Phase IV note above).
+- [awaiting] @d-v-b's call on msgspec vs. a hybrid approach.
 
-**Status:** Draft PR open; Lint + pre-commit CI green; awaiting maintainer
-direction feedback before migrating the remaining (deferred) call sites.
+**Status:** Draft PR open; Lint + pre-commit CI green. Direction under
+discussion (msgspec vs. hybrid); awaiting maintainer decision before the next
+implementation step.
 
 ---
 
