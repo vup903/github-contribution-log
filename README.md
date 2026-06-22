@@ -4,7 +4,7 @@
 **Student:** Yong-Shin Jiang
 **Issue:** https://github.com/zarr-developers/zarr-python/issues/3285  
 **Fork branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285  
-**Status:** Phase II — Complete
+**Status:** Phase III — Complete
 
 ---
 
@@ -221,49 +221,136 @@ full suite stays green (no regressions).
 
 ## Testing Strategy
 
-### Unit Tests (planned)
+### Unit Tests (added)
 
-- [ ] Valid values pass validation for each metadata type.
-- [ ] Wrong types raise a clear, helpful error.
-- [ ] Edge cases: `Optional`/`Union`/nested annotations behave correctly.
+New file `tests/test_json_parse.py` — 94 tests covering every `parse_json`
+dispatch category:
+- [x] Primitives pass; wrong types raise. Includes the bool/int edge case
+      (`parse_json(True, int)` raises; `parse_json(1, bool)` raises).
+- [x] `Literal` membership; `True` does not match `Literal[1, 2]`.
+- [x] Unions / `Optional` (both `typing.Union` and `X | Y` spellings); no-match
+      raises an aggregated error.
+- [x] `tuple` (fixed-length, variadic, empty); `Sequence`/`list` coerced to a
+      tuple; `Mapping[str, T]` returns a dict.
+- [x] `TypedDict` required/optional/`NotRequired`/nested — incl. correct
+      `NotRequired` handling under `from __future__ import annotations`.
+- [x] Fallback `TypeError` for unsupported annotations; error messages name the
+      offending value and expected type.
 
-### Integration Tests (planned)
+### Regression / Integration Tests (existing suite)
 
-- [ ] Existing metadata round-trip tests still pass after the de-duplication.
+Each migration batch was validated against the project's own suites with no
+regressions:
+- [x] Pilot + Batch 1 (literals): `test_common`, `test_config`, `test_metadata`,
+      `test_codecs`, `test_chunk_grids`, `test_json_parse` → **1196 passed**.
+- [x] Batch 2 (codec primitives): `test_codecs`, `test_json_parse` →
+      **794 passed**.
+- [x] Full `uv run --frozen mypy` (190 source files) clean after every batch.
+- [x] `ruff check` + `ruff format` (pinned v0.15.15) clean on all changed files.
 
-### Manual Testing
+### Tooling / Validation
 
-[Phase II]
+- Lint and pre-commit.ci CI checks on the draft PR are **green**.
+- Commands used locally:
+  `py -3.12 -m hatch run test.py3.12-optional:pytest <paths> -q`,
+  `py -3.12 -m uv run --frozen mypy`,
+  `py -3.12 -m uv tool run ruff@0.15.15 check/format`.
+
+### Known unrelated failure
+
+The full-suite CI **Test** jobs are red due to a pre-existing collection error
+in `tests/test_group.py` (`duplicate parametrization of 'store'`) and
+`tests/test_docs.py` under the newer pytest — present on `main`, unrelated to
+this change. The Lint/type checks (which gate this work) are green.
 
 ---
 
 ## Implementation Notes
 
-### Week [X] Progress
+### Phase III Progress
 
-[Phase II — what I built, challenges, decisions.]
+**What I built:**
+- `src/zarr/core/json_parse.py` — the unified `parse_json(value, type_annotation)`
+  validator, dispatching on `typing.get_origin`/`get_args` to sub-parsers for
+  primitives, `Literal`, unions/`Optional`, `tuple` (fixed + variadic),
+  `Sequence`/`list` (coerced to tuple), `Mapping`/`dict`, and `TypedDict`. Scope
+  stays on the JSON types the issue lists.
+- `tests/test_json_parse.py` — 94 unit tests (see Testing Strategy).
+- `changes/3285.feature.md` — changelog fragment (project convention is `.md`).
+- **Migrated 16 of the ~42 scattered `parse_*` helpers** to delegate to
+  `parse_json`, in three reviewable batches:
+  - **Pilot (3):** `common.py::parse_order`, `common.py::parse_bool`,
+    `metadata/v3.py::parse_zarr_format`.
+  - **Batch 1 — literals (7):** `config.py::parse_indexing_order`,
+    `group.py::parse_node_type`, `metadata/v3.py::parse_node_type_array`,
+    `chunk_key_encodings.py::parse_separator`, `group.py::parse_zarr_format`,
+    `metadata/v2.py::parse_zarr_format`, `common.py::parse_name`.
+  - **Batch 2 — codec primitives (6):** `zstd.py::parse_checksum`,
+    `blosc.py::{parse_clevel,parse_blocksize,parse_typesize}`,
+    `gzip.py::parse_gzip_level`, `zstd.py::parse_zstd_level`.
+- Deferred (noted as follow-up in the PR): the `sequence→tuple`, `mapping`,
+  `union`, and `other` helpers, which dispatch to registries/factory methods and
+  fall outside the issue's stated JSON-type scope.
+
+**Challenges faced & decisions:**
+- **Behavior preservation across exception types.** Several helpers raise
+  domain-specific errors (`MetadataValidationError`, `NodeTypeValidationError`)
+  or specific messages that tests assert on. `parse_json` raises plain
+  `ValueError`/`TypeError`, so each migration wraps the call and re-raises the
+  original error type/message — public signatures and observable behavior are
+  unchanged.
+- **Circular imports.** `parse_json` is imported function-locally inside each
+  migrated helper (the metadata/codec modules load early), avoiding import
+  cycles.
+- **bool vs int.** `parse_json(x, int)` deliberately rejects `bool` (a `bool` is
+  an `int` subclass). The old `isinstance(x, int)` accepted it. I verified no
+  caller/test passes a bool to the migrated int parsers, so this is a deliberate,
+  more-correct strictening rather than a regression.
+- **`TypedDict` + `NotRequired` under stringized annotations.** Reading
+  `__required_keys__` misclassifies a class-syntax `NotRequired` key as required
+  when `from __future__ import annotations` is active (which zarr uses
+  everywhere). Reworked `_parse_typeddict` to resolve hints with
+  `get_type_hints(..., include_extras=True)` and read the `Required`/`NotRequired`
+  wrappers + `__total__` directly.
+- **mypy friction.** `get_origin(hint) is Required` tripped mypy's
+  comparison-overlap/unreachable checks (fixed by typing the local as `Any`), and
+  `return parse_json(...)` from `-> int` helpers tripped `no-any-return` (fixed
+  with annotated local assignments).
 
 ### Code Changes
 
-- **Files modified:** [Phase II]
-- **Key commits:** [Phase II]
-- **Approach decisions:** [Phase II]
+- **Branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285
+- **Files added:** `src/zarr/core/json_parse.py`, `tests/test_json_parse.py`,
+  `changes/3285.feature.md`
+- **Files modified:** `core/common.py`, `core/config.py`, `core/group.py`,
+  `core/chunk_key_encodings.py`, `core/metadata/v2.py`, `core/metadata/v3.py`,
+  `codecs/blosc.py`, `codecs/gzip.py`, `codecs/zstd.py`
+- **Key commits:**
+  - `2b57be8` Add unified parse_json runtime type checker
+  - `0eba162` Migrate parse_order, parse_bool, parse_zarr_format (pilot)
+  - `df1a0cc` Fix lint; make TypedDict NotRequired robust under future annotations
+  - `78874b3` Annotate origin as Any to satisfy mypy in _parse_typeddict
+  - `730274a` Migrate Batch 1 literal parsers
+  - `6bde3f4` Migrate Batch 2 codec primitive parsers
 
 ---
 
 ## Pull Request
 
-**PR Link:** [Draft PR — Phase II]
+**PR Link:** Draft PR opened against `zarr-developers/zarr-python` from
+branch `fix-issue-3285` (proof-of-direction draft, per maintainer request).
 
-**PR Description:** [Adapted from the sections above; will open as a draft first
-to show direction, per maintainer request.]
+**PR Description:** Summarizes the unified `parse_json` module, the test suite,
+and the incremental migration; asks for direction feedback on module
+location/name, the exception-handling split, and `TypedDict` handling.
 
 **Maintainer Feedback:**
 - 2026-06-08: @d-v-b confirmed the biggest win is **de-duplication** and asked
   for a **draft PR showing the intended direction** as a starting point.
-- [Date]: [Next feedback + how I addressed it]
+- [awaiting] Feedback on the draft PR direction.
 
-**Status:** Planning → Draft PR (Phase II)
+**Status:** Draft PR open; Lint + pre-commit CI green; awaiting maintainer
+direction feedback before migrating the remaining (deferred) call sites.
 
 ---
 
