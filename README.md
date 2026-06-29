@@ -4,7 +4,8 @@
 **Student:** Yong-Shin Jiang
 **Issue:** https://github.com/zarr-developers/zarr-python/issues/3285  
 **Fork branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285  
-**Status:** Phase III — Complete
+**PR:** https://github.com/zarr-developers/zarr-python/pull/4063 (draft #4063)
+**Status:** Phase IV — Iterating (draft PR #4063 open; responding to maintainer feedback)
 
 ---
 
