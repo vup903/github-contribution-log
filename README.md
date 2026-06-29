@@ -345,9 +345,30 @@ results on the PR. Findings:
 
 I proposed two paths back to the maintainers (a thin hand-written layer only for
 `JSONValue` + `extra_items=` with msgspec doing the rest, or reshaping those
-constructs so msgspec covers everything) and asked which they prefer. Awaiting
-their direction before writing more code. Spike script kept locally
-(`msgspec_spike.py`).
+constructs so msgspec covers everything) and asked which they prefer.
+
+On 2026-06-24 @d-v-b replied: both `JSONValue` and `extra_items=` are important,
+but we don't need to cover 100% of the surface with a single tool — he's
+interested in seeing how far `msgspec` can get even if it doesn't reach the whole
+way, with the success metric being **increased code simplicity (removing code) +
+catching bugs**. That green-lit the hybrid direction, so I implemented it in full on the branch
+(commit `e29d0a05`, pushed 2026-06-29): I deleted the hand-written `parse_json`
+validator entirely and routed every former call site through `msgspec.convert`,
+keeping a small fallback (`validate_json_value`) only for the recursive JSON
+values msgspec can't build a schema for (now with a nesting-depth limit), plus
+the existing `extra_items=` check. The registry/dtype/numcodec parsers
+(`parse_codecs`, `parse_chunk_grid`, `parse_filters`, `dtype.from_json_scalar`,
+…) stay hand-written because they need runtime registry lookups msgspec
+structurally cannot do.
+
+**Result:** net ~555 lines removed (`json_parse.py` 291 → ~76,
+`test_json_parse.py` 479 → ~110), `msgspec` added as a dependency (pinned in the
+`min_deps` CI env), and two latent bugs caught — there was no JSON nesting-depth
+limit (stack-exhaustion risk on hostile `attributes`) and
+`parse_storage_transformers` exhausted a one-shot iterable. Every migrated helper
+preserves its original exception type and message. The affected-module suites +
+integration tests (~3,300 cases), `mypy` (189 files) and `ruff` are all green.
+Spike script kept locally (`msgspec_spike.py`).
 
 ### Code Changes
 
