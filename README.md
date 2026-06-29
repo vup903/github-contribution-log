@@ -392,8 +392,9 @@ Spike script kept locally (`msgspec_spike.py`).
 
 ## Pull Request
 
-**PR Link:** Draft PR opened against `zarr-developers/zarr-python` from
-branch `fix-issue-3285` (proof-of-direction draft, per maintainer request).
+**PR Link:** https://github.com/zarr-developers/zarr-python/pull/4063 — draft PR
+(#4063) against `zarr-developers/zarr-python` from branch `fix-issue-3285`
+(proof-of-direction draft, per maintainer request).
 
 **PR Description:** Summarizes the unified `parse_json` module, the test suite,
 and the incremental migration; asks for direction feedback on module
@@ -401,17 +402,33 @@ location/name, the exception-handling split, and `TypedDict` handling.
 
 **Maintainer Feedback:**
 - 2026-06-08: @d-v-b confirmed the biggest win is **de-duplication** and asked
-  for a **draft PR showing the intended direction** as a starting point.
-- 2026-06-22: @chuckwondo suggested adopting `msgspec` to replace most of the
-  hand-written logic; @d-v-b asked whether msgspec can handle the `zarr-metadata`
-  types and merged `main` into the branch. I responded with a spike showing
-  msgspec covers the simple categories but not the recursive `JSONValue` alias or
-  PEP 728 `extra_items=`, and proposed two directions (see Phase IV note above).
-- [awaiting] @d-v-b's call on msgspec vs. a hybrid approach.
+  for a **draft PR showing the intended direction** as a starting point (issue
+  thread #3285).
+- 2026-06-22: @chuckwondo suggested adopting `msgspec` (a small dependency) to
+  replace most of the hand-written logic; @d-v-b asked whether msgspec can handle
+  the `zarr-metadata` types (he recalled prior issues, possibly with tuples) and
+  merged `main` into the branch to keep it current. Same day I posted a spike
+  showing msgspec covers the simple categories but not the recursive `JSONValue`
+  alias or PEP 728 `extra_items=`, and proposed two directions (see Phase IV note
+  above).
+- 2026-06-24: @d-v-b replied — both missing features matter, but we don't need to
+  reach 100% with one tool; he wants to see how far `msgspec` gets even if
+  partial, with the metric being **simpler code (removing code) + catching
+  bugs**. This green-lights the hybrid approach. He also merged `main` into the
+  branch a second time.
+- 2026-06-29: Implemented the full msgspec migration on the branch and pushed it
+  (commit `e29d0a05`): net ~555 lines removed, two latent bugs fixed. Posted a
+  comment on the PR summarizing the results.
+- 2026-06-29: @d-v-b reviewed and asked me to encapsulate the repeated
+  `convert`-then-re-raise pattern into a reusable routine (the core stays
+  field-agnostic and emits a generic type error; the caller adds field context).
+  Implemented that as a `parse_field` helper (commit `041bdf4a`), so each
+  per-field parser is now a one-liner, and replied in the review thread. Awaiting
+  his re-review.
 
-**Status:** Draft PR open; Lint + pre-commit CI green. Direction under
-discussion (msgspec vs. hybrid); awaiting maintainer decision before the next
-implementation step.
+**Status:** Iterating. PR (#4063) open and mergeable; Lint + pre-commit CI green.
+Actively iterating with @d-v-b on review feedback (latest: encapsulated the parse
+pattern into a `parse_field` helper, 2026-06-29); awaiting his re-review.
 
 ---
 
