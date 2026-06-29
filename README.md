@@ -373,18 +373,20 @@ Spike script kept locally (`msgspec_spike.py`).
 ### Code Changes
 
 - **Branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285
-- **Files added:** `src/zarr/core/json_parse.py`, `tests/test_json_parse.py`,
-  `changes/3285.feature.md`
+- **Files rewritten:** `src/zarr/core/json_parse.py` (291 → ~76 lines: now
+  `convert` + `validate_json_value` instead of `parse_json`),
+  `tests/test_json_parse.py` (479 → ~110), `changes/3285.feature.md`
 - **Files modified:** `core/common.py`, `core/config.py`, `core/group.py`,
   `core/chunk_key_encodings.py`, `core/metadata/v2.py`, `core/metadata/v3.py`,
-  `codecs/blosc.py`, `codecs/gzip.py`, `codecs/zstd.py`
+  `codecs/blosc.py`, `codecs/gzip.py`, `codecs/zstd.py`, `pyproject.toml`
+  (add `msgspec`)
 - **Key commits:**
-  - `2b57be8` Add unified parse_json runtime type checker
-  - `0eba162` Migrate parse_order, parse_bool, parse_zarr_format (pilot)
-  - `df1a0cc` Fix lint; make TypedDict NotRequired robust under future annotations
-  - `78874b3` Annotate origin as Any to satisfy mypy in _parse_typeddict
-  - `730274a` Migrate Batch 1 literal parsers
-  - `6bde3f4` Migrate Batch 2 codec primitive parsers
+  - (Phase III) `2b57be8` … `6bde3f4`: added `parse_json` and migrated 16
+    helpers to it.
+  - (Phase IV) `e29d0a05`: **Replace hand-written `parse_json` with
+    `msgspec.convert`** (the current direction; supersedes the above).
+  - (Phase IV) `041bdf4a`: Encapsulate the convert + field-error pattern into a
+    reusable `parse_field` helper (per @d-v-b's review).
 
 ---
 
