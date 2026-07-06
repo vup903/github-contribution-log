@@ -426,9 +426,13 @@ location/name, the exception-handling split, and `TypedDict` handling.
   per-field parser is now a one-liner, and replied in the review thread. Awaiting
   his re-review.
 
-**Status:** Iterating. PR (#4063) open and mergeable; Lint + pre-commit CI green.
-Actively iterating with @d-v-b on review feedback (latest: encapsulated the parse
-pattern into a `parse_field` helper, 2026-06-29); awaiting his re-review.
+- 2026-07-06: No further response after the `parse_field` change (7 days), so
+  marked the PR **ready for review** (it had been in draft since the original
+  proof-of-direction), rewrote the stale PR title/description to match the
+  current msgspec-based implementation, and left a short follow-up comment.
+
+**Status:** Ready for review. PR (#4063) is out of draft, open and mergeable;
+Lint + pre-commit CI green. Awaiting maintainer re-review; no blockers.
 
 ---
 
