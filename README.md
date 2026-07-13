@@ -431,8 +431,13 @@ location/name, the exception-handling split, and `TypedDict` handling.
   proof-of-direction), rewrote the stale PR title/description to match the
   current msgspec-based implementation, and left a short follow-up comment.
 
+- 2026-07-13: No maintainer response for ~2 weeks since the PR went ready for
+  review, so left a polite follow-up nudge asking whether anything else needs
+  changing to move it along.
+
 **Status:** Ready for review. PR (#4063) is out of draft, open and mergeable;
-Lint + pre-commit CI green. Awaiting maintainer re-review; no blockers.
+full CI green (all checks passing, incl. the `min_deps` job). Awaiting maintainer
+review; polite follow-up left 2026-07-13. No blockers.
 
 ---
 
