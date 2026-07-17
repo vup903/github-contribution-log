@@ -5,7 +5,8 @@
 **Issue:** https://github.com/google/adk-python/issues/6091
 **Fork branch:** https://github.com/vup903/adk-python/tree/fix-issue-6091
 **PR:** https://github.com/google/adk-python/pull/6416
-**Status:** Phase III — PR #6416 open; CI green, CLA signed, mergeable; awaiting maintainer review
+**Status:** ✅ MERGED — imported via Copybara into `main` as commit `c429d754`
+(2026-07-17); issue #6091 auto-closed as completed.
 
 ---
 
@@ -242,7 +243,14 @@ CLA signed, mergeable; auto-assigned to maintainer GWeale, labeled `models`.
   the Google CLA (all checks green, mergeable). Posted a summary comment on
   #6091 pointing to the PR, confirming the three fixes and the always-send
   design decision, and taking up @surajksharma07's offer to review the
-  Vertex-side wire shape. Awaiting maintainer review.
+  Vertex-side wire shape.
+- 2026-07-17 (same day): **Merged.** @adk-bot imported the change via
+  Copybara into `main` as commit `c429d754` ("fix: collect all tools so
+  native tools aren't dropped", authored by Yong-Shin Jiang) and closed the
+  PR; issue #6091 auto-closed as completed. Note: Google merges external PRs
+  through Copybara rather than GitHub's merge button, so the GitHub PR shows
+  as "Closed" with a null `mergedAt` even though the change is in `main` —
+  the adk-bot comment is the authoritative merge confirmation.
 
 ### Note on the CLA (process learning)
 
@@ -274,7 +282,38 @@ the check could pass.
 
 ### Technical Skills Gained
 
-_[Phase III/IV]_
+- Traced a data-loss bug to a single over-narrow guard (`tools[0]`) in a
+  provider-integration serialization path, and distinguished the reported
+  symptom (native tools dropped) from the underlying root cause (only the
+  first `Tool` ever processed) — the maintainer confirmed the root-cause read
+  and it widened the fix.
+- Worked inside `google-genai` typed `Tool` objects: converting
+  `FunctionDeclaration`s vs. serializing native tools with
+  `model_dump(by_alias=True, exclude_none=True)`, and asserting exact wire
+  shape in unit tests.
+- Set up the ADK dev environment on Windows (Python 3.12 venv, editable
+  install with `[test]` extras, pytest-asyncio auto mode) and ran the
+  project's pre-commit stack (ruff/isort/pyink/addlicense).
+
+### Process Learnings
+
+- **Design-first claiming works.** The claim comment led with a verified
+  root-cause read + a concrete plan + one scoped design question, and
+  deliberately did NOT @-mention the stale original reporter (to avoid
+  re-triggering their claim). The maintainer responded by confirming the
+  analysis, adding a third fix site, answering the design question, and
+  clearing the PR — no back-and-forth needed.
+- **Google merges via Copybara, not the merge button.** A merged external PR
+  shows as "Closed" with `mergedAt: null` on GitHub; the authoritative signal
+  is the adk-bot comment naming the internal merge commit. Don't mistake the
+  Closed state for a rejection.
+- **CLA checks every contributor on the commit.** Author email must match a
+  GitHub-linked address, and non-human `Co-Authored-By` trailers block the
+  check. Fixed by amend + force-push before the CLA could pass.
+- **Speed:** claim → maintainer ack → PR → merge happened within roughly a
+  day, because the fix direction was pre-blessed and the PR arrived with tests
+  and a filled-in testing plan. Doing the homework up front removed every
+  reason to stall.
 
 ---
 
