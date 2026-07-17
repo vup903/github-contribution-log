@@ -239,7 +239,10 @@ CLA signed, mergeable; auto-assigned to maintainer GWeale, labeled `models`.
   spot (`_build_request_log`), answered the design question (always send
   both), and cleared me to open the PR.
 - 2026-07-17: Opened PR #6416 implementing all three fixes + tests; signed
-  the Google CLA. Awaiting review.
+  the Google CLA (all checks green, mergeable). Posted a summary comment on
+  #6091 pointing to the PR, confirming the three fixes and the always-send
+  design decision, and taking up @surajksharma07's offer to review the
+  Vertex-side wire shape. Awaiting maintainer review.
 
 ### Note on the CLA (process learning)
 
