@@ -3,9 +3,9 @@
 **Contribution Number:** 2
 **Student:** Yong-Shin Jiang
 **Issue:** https://github.com/google/adk-python/issues/6091
-**Fork branch:** _TBD (will be created after assignment)_
-**PR:** _TBD_
-**Status:** Phase I — Issue selected; claim comment posted (2026-07-13), awaiting maintainer response/assignment
+**Fork branch:** https://github.com/vup903/adk-python/tree/fix-issue-6091
+**PR:** https://github.com/google/adk-python/pull/6416
+**Status:** Phase III — PR #6416 open; CI green, CLA signed, mergeable; awaiting maintainer review
 
 ---
 
@@ -185,19 +185,71 @@ the collaborator's outline is the blessed direction.
 
 ## Implementation Notes
 
-_[Phase III]_
+### Phase III — Implementation (branch `fix-issue-6091`, PR #6416)
+
+**What I built:**
+- `src/google/adk/models/lite_llm.py` — rewrote the "Convert tool
+  declarations" block in `_get_completion_inputs`: instead of gating on
+  `config.tools[0].function_declarations`, loop over all `config.tools`,
+  convert `function_declarations` through the existing
+  `_function_declaration_to_tool_param` path, and serialize native tools via
+  `model_dump(by_alias=True, exclude_none=True)` into the same combined list.
+  Applied the same fix to the `tools[0]`-only slice in `_build_request_log`
+  (the third spot the collaborator flagged; debug-log only) and removed the
+  now-unused `cast` import.
+- `tests/unittests/models/test_litellm.py` — 4 new tests: native-only tool
+  serialized, mixed native+function, function tools beyond index 0 collected
+  (directly exercises the root cause), and a no-tools regression.
+
+**Design decision (per maintainer @surajksharma07, 2026-07-17):** always send
+both function and native tools; do not pre-emptively guess provider support
+or drop natives with a warning — let the provider/proxy reject an unsupported
+schema like any other unsupported parameter. This matched the reporter's own
+extra_body workaround, which sent them unconditionally and worked on both
+Vertex and OpenAI paths.
+
+**Verification:**
+- `pytest tests/unittests/models/test_litellm.py -q` → **345 passed** (4 new +
+  existing suite, no regressions).
+- pre-commit core hooks (ruff, isort, pyink, addlicense, header-check) pass on
+  the changed files.
+- OpenAI path verified against a local `litellm proxy` (native tools now in
+  the request body). Vertex-via-proxy covered by wire-shape assertions against
+  a mocked OpenAI-compatible backend; real-Vertex check requested during
+  review (no Vertex env available).
+
+**Environment:** Windows 11, Python 3.12.10, `.venv` with `pip install -e
+".[test]"`; litellm 1.85.7, google-genai 2.11.0.
 
 ---
 
 ## Pull Request
 
-**PR Link:** _TBD_
+**PR Link:** https://github.com/google/adk-python/pull/6416 — "fix(litellm):
+collect all tools so native tools aren't dropped", `Fixes #6091`. CI green,
+CLA signed, mergeable; auto-assigned to maintainer GWeale, labeled `models`.
 
 **Maintainer Feedback:**
 - 2026-07-13: Posted claim comment — verified the gate on current `main`,
   flagged the second symptom (index-0-only handling), laid out the fix +
   test plan per the collaborator's outline, disclosed the missing Vertex
-  environment, and asked one scoped design question. Awaiting response.
+  environment, and asked one scoped design question.
+- 2026-07-17: @surajksharma07 replied — confirmed the analysis, agreed the
+  index-0-only slice is the real root bug, pointed out a third identical
+  spot (`_build_request_log`), answered the design question (always send
+  both), and cleared me to open the PR.
+- 2026-07-17: Opened PR #6416 implementing all three fixes + tests; signed
+  the Google CLA. Awaiting review.
+
+### Note on the CLA (process learning)
+
+The first PR commit failed the `cla/google` check with "Missing CLA from one
+or more contributors" for two reasons, both fixed by amending the commit and
+force-pushing: (1) the commit author email was my school address rather than
+the email tied to my GitHub account, and (2) a `Co-Authored-By` trailer
+listed a non-human contributor that could never sign a CLA. Google's CLA bot
+verifies *every* contributor on the commit, so both had to be resolved before
+the check could pass.
 
 ---
 
