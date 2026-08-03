@@ -473,14 +473,53 @@ location/name, the exception-handling split, and `TypedDict` handling.
   dirty actively works against getting reviewed — the drift, not the code, had
   become the blocker.
 
-**Status:** Ready for review, conflicts resolved, awaiting maintainer approval.
-PR (#4063) is out of draft and open; branch re-synced with `main` (2026-08-03,
-merge `a961b27d`) and GitHub reports it `MERGEABLE` again, with the remaining
-`BLOCKED` state being the pending approving review rather than anything on my
-side. Local test suites and `mypy` green. @d-v-b committed to reviewing on
-2026-07-14 but has not yet done so (~3 weeks); he remains highly active in the
-repo (merging PRs through 2026-08-02), so the plan is a short follow-up noting the
-re-sync rather than a bare reminder.
+- 2026-08-03 (cont.): The re-sync surfaced a second, less obvious consequence of
+  drift. Merging `main` also pulled in a brand-new CI check, `ci/lint_docs.py`,
+  added as part of the project's Sphinx-to-MkDocs migration, and it immediately
+  failed with 8 issues — all of them in `src/zarr/core/json_parse.py`, this
+  contribution's own file. The check flags Sphinx roles like `:func:` and
+  `:class:`, which mkdocstrings does not interpret: they pass through as literal
+  text instead of becoming links, and nothing else in the docs CI catches it
+  (`mkdocs build --strict` reads them as ordinary prose).
+
+  I converted the nine affected references to plain inline literals rather than
+  MkDocs cross-references (`[`X`][zarr.X]`). The deciding factor was that most of
+  them point at `msgspec`, which is not among the intersphinx inventories
+  configured in `mkdocs.yml`, so a cross-reference would not resolve and would
+  instead trip the neighbouring `ci/check_unlinked_types.py`. Plain literals also
+  match how the codebase already writes external references such as
+  `np.nonzero`. Verified by running the exact CI commands locally
+  (`ci/check_documented_exports.py`, `ci/lint_docs.py`), plus `ruff` and the
+  affected test files. Commit `78646f36`.
+
+  **Second lesson:** re-syncing a stale branch imports the project's *new
+  standards*, not just its new code. A PR that was green months ago can fail on
+  rules that did not exist when it was written, so "resolve the conflict" is not
+  the whole job — the full check suite has to be re-run afterwards. Also worth
+  noting the failing check was easy to misread as pre-existing upstream noise
+  (this repo does have genuinely broken jobs); reading the actual log was what
+  showed every one of the 8 hits was in my own file.
+
+- 2026-08-03: Posted a follow-up comment noting the re-sync, the docs-lint fix,
+  and the open offer to use real cross-references if the maintainers would rather
+  add msgspec to the inventories.
+  (https://github.com/zarr-developers/zarr-python/pull/4063#issuecomment-5164133890)
+  Deliberately did not tag @d-v-b, since he is already subscribed to the thread
+  and had committed to reviewing; the tag is held in reserve if this gets no
+  response either. Full CI after the fix: **25 passing, 3 skipped, 0 failing**,
+  and GitHub reports the PR `MERGEABLE`.
+
+**Status:** Ready for review, conflicts resolved, CI fully green, awaiting
+maintainer approval. PR (#4063) is out of draft and open; branch re-synced with
+`main` (2026-08-03, merge `a961b27d`) and the new docs-lint failure it exposed
+fixed (`78646f36`). Full CI is **25 passing, 3 skipped, 0 failing** and GitHub
+reports the PR `MERGEABLE`; the remaining `BLOCKED` state is the pending
+approving review rather than anything on my side. @d-v-b committed to reviewing
+on 2026-07-14 but has not yet done so (~3 weeks); he remains highly active in the
+repo (merging PRs through 2026-08-02), so a short follow-up noting the re-sync
+was posted rather than a bare reminder. Next escalation, if this also goes
+unanswered for ~2 weeks, is a direct tag or asking whether another maintainer
+could take the review.
 
 ---
 
