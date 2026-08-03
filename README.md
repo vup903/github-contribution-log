@@ -440,18 +440,32 @@ location/name, the exception-handling split, and `TypedDict` handling.
   off on further nudges.
 
 - 2026-08-03: Status check. No further maintainer response in the ~3 weeks since
-  that reply, and `main` had moved 63 commits ahead — the branch had drifted from
-  `mergeable` into `mergeable_state: dirty`, i.e. GitHub was showing the PR as
-  having conflicts. Root cause was a single-line collision in
-  `tests/test_common.py`: upstream PR #4205 added a `concurrent_iter` import to
-  the same alphabetically-sorted `from zarr.core.common import (...)` block where
-  this branch had added `parse_bool` / `parse_order`. Resolved as a union of both
-  sides (no logic change), and re-validated: `tests/test_common.py`,
+  that reply, and the branch had fallen 50 commits behind `main`, drifting from
+  `mergeable` into `mergeable_state: dirty` — GitHub was showing the PR as having
+  conflicts. Root cause was a single-line collision in `tests/test_common.py`:
+  upstream PR #4205 added a `concurrent_iter` import to the same
+  alphabetically-sorted `from zarr.core.common import (...)` block where this
+  branch had added `parse_bool` / `parse_order`. Resolved as a union of both
+  sides (no logic change) and validated: `tests/test_common.py`,
   `test_json_parse`, `test_config`, `test_metadata`, `test_codecs`,
   `test_chunk_grids`, `test_group` → **1784 passed, 16 skipped, 2 xfailed**, and
-  `mypy` clean on 195 source files. Worth noting the pre-existing
+  `mypy` clean on 195 source files. Merge commit `a961b27d`, pushed the same day;
+  GitHub now reports the PR as `MERGEABLE` again. Worth noting the pre-existing
   `tests/test_group.py` collection error recorded in Phase II has since been
   fixed upstream, so that suite now runs clean too.
+
+  **Process mistake worth recording:** my local clone was stale (last commit
+  2026-06-29) and had not fetched the fork, so I first built the merge on top of
+  the wrong base and it was rejected as non-fast-forward on push. The fork tip
+  was actually `c596b682`, a third "merge main into fix-issue-3285" commit that
+  @d-v-b had pushed on 2026-07-07. Force-pushing the first attempt would have
+  silently discarded his commit. The fix was to reset onto the true remote head
+  and redo the merge there; the resulting tree hashed identically
+  (`1084b1c2`) to the already-validated one, confirming the content was the same
+  and only the ancestry had been wrong. Takeaway: always `git fetch origin` and
+  verify the local branch actually matches the PR head before resolving
+  conflicts, and treat a rejected push as a signal to investigate rather than a
+  prompt to force.
 
   **Lesson recorded:** a long-lived PR waiting on review needs periodic re-syncing
   even when nothing about the contribution itself has changed. A PR displaying
@@ -460,10 +474,13 @@ location/name, the exception-handling split, and `TypedDict` handling.
   become the blocker.
 
 **Status:** Ready for review, conflicts resolved, awaiting maintainer approval.
-PR (#4063) is out of draft and open; branch re-synced with `main` (2026-08-03) so
-it is mergeable again; local test suites and `mypy` green. @d-v-b has committed to
-reviewing but has not yet done so (~3 weeks); he remains highly active in the repo,
-so the plan is a short follow-up noting the re-sync rather than a bare reminder.
+PR (#4063) is out of draft and open; branch re-synced with `main` (2026-08-03,
+merge `a961b27d`) and GitHub reports it `MERGEABLE` again, with the remaining
+`BLOCKED` state being the pending approving review rather than anything on my
+side. Local test suites and `mypy` green. @d-v-b committed to reviewing on
+2026-07-14 but has not yet done so (~3 weeks); he remains highly active in the
+repo (merging PRs through 2026-08-02), so the plan is a short follow-up noting the
+re-sync rather than a bare reminder.
 
 ---
 
