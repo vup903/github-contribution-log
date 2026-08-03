@@ -5,7 +5,7 @@
 **Issue:** https://github.com/zarr-developers/zarr-python/issues/3285  
 **Fork branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285  
 **PR:** https://github.com/zarr-developers/zarr-python/pull/4063 (draft #4063)
-**Status:** Phase IV — Iterating (draft PR #4063 open; responding to maintainer feedback)
+**Status:** Phase IV — Ready for review; awaiting maintainer approval (PR #4063 open, out of draft; branch re-synced with `main` on 2026-08-03 after it drifted into a merge conflict)
 
 ---
 
@@ -435,9 +435,35 @@ location/name, the exception-handling split, and `TypedDict` handling.
   review, so left a polite follow-up nudge asking whether anything else needs
   changing to move it along.
 
-**Status:** Ready for review. PR (#4063) is out of draft, open and mergeable;
-full CI green (all checks passing, incl. the `min_deps` job). Awaiting maintainer
-review; polite follow-up left 2026-07-13. No blockers.
+- 2026-07-14: @d-v-b replied: "thanks for the bing, I'm pretty busy this week
+  but I will do my best to get to this PR soon." Commitment to review, so I held
+  off on further nudges.
+
+- 2026-08-03: Status check. No further maintainer response in the ~3 weeks since
+  that reply, and `main` had moved 63 commits ahead — the branch had drifted from
+  `mergeable` into `mergeable_state: dirty`, i.e. GitHub was showing the PR as
+  having conflicts. Root cause was a single-line collision in
+  `tests/test_common.py`: upstream PR #4205 added a `concurrent_iter` import to
+  the same alphabetically-sorted `from zarr.core.common import (...)` block where
+  this branch had added `parse_bool` / `parse_order`. Resolved as a union of both
+  sides (no logic change), and re-validated: `tests/test_common.py`,
+  `test_json_parse`, `test_config`, `test_metadata`, `test_codecs`,
+  `test_chunk_grids`, `test_group` → **1784 passed, 16 skipped, 2 xfailed**, and
+  `mypy` clean on 195 source files. Worth noting the pre-existing
+  `tests/test_group.py` collection error recorded in Phase II has since been
+  fixed upstream, so that suite now runs clean too.
+
+  **Lesson recorded:** a long-lived PR waiting on review needs periodic re-syncing
+  even when nothing about the contribution itself has changed. A PR displaying
+  merge conflicts is easy for a busy maintainer to skip over, so letting it sit
+  dirty actively works against getting reviewed — the drift, not the code, had
+  become the blocker.
+
+**Status:** Ready for review, conflicts resolved, awaiting maintainer approval.
+PR (#4063) is out of draft and open; branch re-synced with `main` (2026-08-03) so
+it is mergeable again; local test suites and `mypy` green. @d-v-b has committed to
+reviewing but has not yet done so (~3 weeks); he remains highly active in the repo,
+so the plan is a short follow-up noting the re-sync rather than a bare reminder.
 
 ---
 
