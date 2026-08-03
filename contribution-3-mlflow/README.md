@@ -5,7 +5,7 @@
 **Issue:** https://github.com/mlflow/mlflow/issues/24033
 **Fork branch:** _TBD (will be created after triage/assignment)_
 **PR:** _TBD_
-**Status:** Phase I — Issue selected; claim comment posted (2026-07-29), awaiting triage/`ready` label and assignment
+**Status:** Phase I — Issue selected; claim comment posted (2026-07-29), awaiting triage/`ready` label and assignment (no response as of 2026-08-03)
 
 ---
 
@@ -230,6 +230,28 @@ without triage may be auto-closed._
   `ready` label + assignment.
   (https://github.com/mlflow/mlflow/issues/24033#issuecomment-5127320038)
   Awaiting response.
+
+- 2026-08-03: Status check, 4 days after claiming. No reply from Shlok148Dev, no
+  maintainer response, no `ready` label, no assignee, and still zero linked PRs
+  on the issue timeline — so the claim is uncontested but also hasn't gained
+  traction yet.
+
+  I checked whether the missing `ready` label is a rejection signal and concluded
+  it isn't: of the currently open `domain/genai` issues, 51 lack the `ready`
+  label versus 27 that have it, so roughly two thirds of live GenAI issues sit
+  in the same state. Triage in this area *is* active (maintainer B-Step62 has
+  been responding on GenAI issues through 2026-08-03, and `area/gateway` bugs
+  filed in late July were `ready`-labeled within days), which suggests bug
+  reports get triaged faster than feature requests rather than that this
+  specific issue has been declined.
+
+  Plan: hold off on a follow-up until roughly 2026-08-08 (about the 1-week
+  mark), then post a short nudge tagging the active GenAI maintainer rather than
+  re-pinging the thread generally. Per this project's own screening rules, a
+  follow-up carrying new technical substance lands far better than a bare "any
+  update?", so the intent is to pair the nudge with concrete findings on the
+  open design question (reuse the provider's existing `_chat()`/Converse path
+  vs. adding a new OpenAI-shaped endpoint).
 
 ---
 
