@@ -566,6 +566,12 @@ location/name, the exception-handling split, and `TypedDict` handling.
   Full CI after all four fixes: **25 passing, 3 skipped, 0 failing**, PR
   `MERGEABLE`.
 
+- 2026-08-04: Replied to the review summarising the four fixes and flagging the
+  `uv.lock` gap explicitly, since that one is a real packaging bug his review
+  surfaced indirectly rather than something he asked for.
+  (https://github.com/zarr-developers/zarr-python/pull/4063#issuecomment-5185736271)
+  Awaiting re-review.
+
   **Lesson:** a review request worth pushing back on is not the same as one
   worth refusing. Item (3) contradicted an explicit earlier design decision, so
   the right move was to re-derive whether the original constraint still applied
@@ -580,8 +586,8 @@ error messages, `10bcc975` import hoisting plus the `uv.lock` fix it uncovered,
 `c829acd2` changelog, `13c44734` msgspec cross-references), on top of the
 2026-08-03 re-sync (`a961b27d`) and docs-lint fix (`78646f36`). Full CI is
 **25 passing, 3 skipped, 0 failing** and GitHub reports the PR `MERGEABLE`.
-Next step is a short reply summarising the four fixes and flagging the `uv.lock`
-gap, then waiting on re-review.
+A reply summarising the four fixes was posted on 2026-08-04; nothing is
+outstanding on my side and the PR is waiting only on re-review and approval.
 
 ---
 
