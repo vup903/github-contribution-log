@@ -5,7 +5,7 @@
 **Issue:** https://github.com/zarr-developers/zarr-python/issues/3285  
 **Fork branch:** https://github.com/vup903/zarr-python/tree/fix-issue-3285  
 **PR:** https://github.com/zarr-developers/zarr-python/pull/4063 (draft #4063)
-**Status:** Phase IV — Ready for review; awaiting maintainer approval (PR #4063 open, out of draft; branch re-synced with `main` on 2026-08-03 after it drifted into a merge conflict)
+**Status:** Phase IV — Reviewed 2026-08-03 ("good to go" after changes); all four requested changes implemented and pushed, CI green, awaiting re-review and approval
 
 ---
 
@@ -509,17 +509,79 @@ location/name, the exception-handling split, and `TypedDict` handling.
   response either. Full CI after the fix: **25 passing, 3 skipped, 0 failing**,
   and GitHub reports the PR `MERGEABLE`.
 
-**Status:** Ready for review, conflicts resolved, CI fully green, awaiting
-maintainer approval. PR (#4063) is out of draft and open; branch re-synced with
-`main` (2026-08-03, merge `a961b27d`) and the new docs-lint failure it exposed
-fixed (`78646f36`). Full CI is **25 passing, 3 skipped, 0 failing** and GitHub
-reports the PR `MERGEABLE`; the remaining `BLOCKED` state is the pending
-approving review rather than anything on my side. @d-v-b committed to reviewing
-on 2026-07-14 but has not yet done so (~3 weeks); he remains highly active in the
-repo (merging PRs through 2026-08-02), so a short follow-up noting the re-sync
-was posted rather than a bare reminder. Next escalation, if this also goes
-unanswered for ~2 weeks, is a direct tag or asking whether another maintainer
-could take the review.
+- 2026-08-03: **@d-v-b reviewed**, with the verdict "a few requests for changes
+  and then I think this is good to go."
+  (https://github.com/zarr-developers/zarr-python/pull/4063#issuecomment-5163948204)
+  Worth noting on timing: his review landed at 08:18 UTC and my follow-up went up
+  at 08:38, so he had already picked the PR up before being nudged. He replied
+  again at 08:40 accepting the offer of real cross-references ("that would be
+  great, if it's not too much work").
+  (https://github.com/zarr-developers/zarr-python/pull/4063#issuecomment-5164148901)
+  Four requested changes:
+
+  1. **Error-quality regression on `Literal` types** (his main concern). The old
+     per-field parsers reported both the expected members and the offending
+     value; the msgspec rewrite lost both. Confirmed: `_type_name` fell back to
+     `__name__`, rendering `Literal[3]` as a bare `"Literal"`, and `parse_field`
+     dropped the value entirely, so `Invalid value for 'zarr_format'. Expected
+     '3'. Got '3.0'.` had degraded to `Failed to parse input for 'zarr_format'.`
+     Fixed by rendering parameterized types through `str()` and including the
+     value, giving `Failed to parse input for 'zarr_format': expected
+     Literal[3], got 3.0.` Commit `cccd69ec`.
+  2. **Changelog should document the stricter parsing.** Verified his example
+     first: the old checks compared with `==`, so `2.0 == 2` held and
+     `zarr_format=2.0` was accepted; msgspec requires an actual `int`, so it is
+     now rejected. Commit `c829acd2`.
+  3. **Hoist the function-local imports.** This one needed checking rather than
+     obeying, because Phase III deliberately made them function-local to avoid
+     import cycles. That constraint no longer holds: after the msgspec rewrite
+     `json_parse`'s only zarr import is `JSON` under `TYPE_CHECKING`, so it has
+     no runtime zarr dependency and cannot participate in a cycle. Hoisted all
+     17 sites across 9 modules and verified each still imports standalone.
+     Commit `10bcc975`.
+  4. **Real cross-references for the msgspec symbols.** Commit `13c44734`.
+
+- 2026-08-04: The hoisting in (3) exposed a genuine latent packaging bug, which
+  is the most interesting find of this round. Once the imports were at module
+  level, `ci/check_documented_exports.py` failed with `ModuleNotFoundError: No
+  module named 'msgspec'`. Tracing it showed `msgspec` is declared in
+  `pyproject.toml` but **was never written into `uv.lock`** — not by the merge,
+  and not on this branch before it either; the lockfile was simply never
+  regenerated when the dependency was added. It stayed invisible precisely
+  because `json_parse` was imported lazily, so `uv run --frozen` never had to
+  resolve msgspec. Regenerating the lock fixed it and is purely additive (42
+  lines, msgspec 0.21.1 and nothing else).
+
+  For the cross-references, msgspec turned out to serve its Sphinx inventory
+  from `msgspec.dev`, not the `jcristharif.com` URL still listed in its package
+  metadata (that path now 404s). I decompressed the inventory and confirmed both
+  `msgspec.convert` and `msgspec.ValidationError` resolve in it before adding it
+  to `mkdocs.yml`. Same-module names stay plain literals, since
+  `zarr.core.json_parse` is internal and absent from the API reference, so a
+  cross-reference to it would fail `mkdocs build --strict`. CI's `Check docs`
+  job, which runs that strict build against every inventory, passed — that is
+  the authoritative confirmation, since my own network is rate-limited (HTTP
+  429) by ReadTheDocs and could not complete a local docs build.
+
+  Full CI after all four fixes: **25 passing, 3 skipped, 0 failing**, PR
+  `MERGEABLE`.
+
+  **Lesson:** a review request worth pushing back on is not the same as one
+  worth refusing. Item (3) contradicted an explicit earlier design decision, so
+  the right move was to re-derive whether the original constraint still applied
+  rather than either obeying blindly or defending the old choice. It no longer
+  did, and checking is what surfaced the lockfile bug underneath it.
+
+**Status:** Reviewed; all requested changes implemented and pushed; awaiting
+re-review and approval. @d-v-b's verdict on 2026-08-03 was "a few requests for
+changes and then I think this is good to go", so the PR is one approving review
+away from merging. All four items are addressed in one commit each (`cccd69ec`
+error messages, `10bcc975` import hoisting plus the `uv.lock` fix it uncovered,
+`c829acd2` changelog, `13c44734` msgspec cross-references), on top of the
+2026-08-03 re-sync (`a961b27d`) and docs-lint fix (`78646f36`). Full CI is
+**25 passing, 3 skipped, 0 failing** and GitHub reports the PR `MERGEABLE`.
+Next step is a short reply summarising the four fixes and flagging the `uv.lock`
+gap, then waiting on re-review.
 
 ---
 
